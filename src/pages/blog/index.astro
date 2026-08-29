@@ -8,10 +8,8 @@ const posts = (await getCollection('blog', ({ data }) => import.meta.env.PROD ? 
 ---
 
 <BaseLayout title="文章" description="Liuyy682 的所有博客文章。">
-  <p class="eyebrow">Archive</p>
-  <h1>文章</h1>
-  <p class="lead">关于技术、生活与创造的记录。</p>
-  <div style="margin-top: 3rem">
+  <div class="wrapper stack page-stack">
+    <header class="section-header"><p class="eyebrow">Archive</p><h1>文章</h1><p>关于技术、生活与创造的记录。</p></header>
     <PostList posts={posts} />
   </div>
 </BaseLayout>

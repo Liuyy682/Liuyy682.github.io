@@ -3,8 +3,9 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 
 <BaseLayout title="页面未找到" description="你访问的页面不存在。">
-  <p class="eyebrow">404</p>
-  <h1>页面未找到</h1>
-  <p class="lead">你访问的地址可能已经改变，或者从未存在。</p>
-  <p><a class="button" href="/">返回首页</a></p>
+  <div class="wrapper stack gap-4 page-stack">
+    <p class="eyebrow">404</p><h1>页面未找到</h1>
+    <p class="hero-tagline">你访问的地址可能已经改变，或者从未存在。</p>
+    <p><a class="button" href="/">返回首页</a></p>
+  </div>
 </BaseLayout>

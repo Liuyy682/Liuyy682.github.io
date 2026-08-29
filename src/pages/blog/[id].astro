@@ -14,11 +14,11 @@ const formatter = new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'lo
 ---
 
 <BaseLayout title={post.data.title} description={post.data.description}>
-  <article>
+  <article class="wrapper article page-stack">
     <header class="article-header">
       <p class="eyebrow">文章</p>
       <h1>{post.data.title}</h1>
-      <p class="lead">{post.data.description}</p>
+      <p class="article-lead">{post.data.description}</p>
       <div class="article-meta">
         <time datetime={post.data.publishDate.toISOString()}>发布于 {formatter.format(post.data.publishDate)}</time>
         {post.data.updatedDate && (

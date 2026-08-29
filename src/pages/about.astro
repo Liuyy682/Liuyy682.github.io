@@ -3,11 +3,10 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 
 <BaseLayout title="关于" description="关于 Liuyy682 和这个博客。">
-  <p class="eyebrow">About</p>
-  <h1>关于</h1>
-  <div class="prose">
-    <p class="lead">你好，我是 Liuyy682。一名持续学习、喜欢创造的人。</p>
-    <p>这个博客用来记录技术实践、阅读笔记与生活中的思考。这里的内容会随着经历不断生长。</p>
-    <p>你可以在 <a href="https://github.com/Liuyy682" rel="me">GitHub</a> 找到我的项目与公开活动。</p>
+  <div class="wrapper about-grid page-stack">
+    <header class="about-hero stack gap-4"><p class="eyebrow">About</p><h1>关于</h1><p class="hero-tagline">感谢你的到来。这里是关于我和这个博客的一点介绍。</p></header>
+    <section class="about-section"><h2>我是谁</h2><div class="about-content"><p>你好，我是 Liuyy682。一名持续学习、喜欢创造的人。</p></div></section>
+    <section class="about-section"><h2>这个博客</h2><div class="about-content"><p>这个博客用来记录技术实践、阅读笔记与生活中的思考。这里的内容会随着经历不断生长。</p></div></section>
+    <section class="about-section"><h2>找到我</h2><div class="about-content"><p>你可以在 <a href="https://github.com/Liuyy682" rel="me">GitHub</a> 找到我的项目与公开活动。</p></div></section>
   </div>
 </BaseLayout>

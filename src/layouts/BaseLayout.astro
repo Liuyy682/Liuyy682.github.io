@@ -23,6 +23,9 @@ const year = new Date().getFullYear();
     <meta name="viewport" content="width=device-width" />
     <meta name="generator" content={Astro.generator} />
     <meta name="description" content={description} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,400;0,700;1,400&family=Rubik:wght@500;600&display=swap" rel="stylesheet" />
     <link rel="canonical" href={canonicalURL} />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <meta property="og:type" content="website" />
@@ -33,21 +36,34 @@ const year = new Date().getFullYear();
     <title>{pageTitle}</title>
   </head>
   <body>
-    <header>
-      <nav class="shell nav" aria-label="主导航">
+    <header class="site-header">
+      <nav class="wrapper nav-shell" aria-label="主导航">
         <a class="brand" href="/">Liuyy682</a>
-        <div class="nav-links">
+        <div class="desktop-nav">
           <a href="/" aria-current={path === '/' ? 'page' : undefined}>首页</a>
           <a href="/blog/" aria-current={path.startsWith('/blog') ? 'page' : undefined}>文章</a>
           <a href="/about/" aria-current={path === '/about/' ? 'page' : undefined}>关于</a>
         </div>
+        <a class="nav-external" href="https://github.com/Liuyy682" rel="me">GitHub ↗</a>
+        <details class="mobile-nav">
+          <summary>菜单</summary>
+          <div class="mobile-links">
+            <a href="/" aria-current={path === '/' ? 'page' : undefined}>首页</a>
+            <a href="/blog/" aria-current={path.startsWith('/blog') ? 'page' : undefined}>文章</a>
+            <a href="/about/" aria-current={path === '/about/' ? 'page' : undefined}>关于</a>
+            <a href="https://github.com/Liuyy682" rel="me">GitHub ↗</a>
+          </div>
+        </details>
       </nav>
     </header>
-    <main class="shell"><slot /></main>
-    <footer>
-      <div class="shell footer-inner">
-        <span>© {year} Liuyy682</span>
-        <a href="https://github.com/Liuyy682" rel="me">GitHub</a>
+    <main><slot /></main>
+    <footer class="site-footer">
+      <div class="wrapper footer-inner">
+        <div class="footer-group">
+          <span>使用 <a href="https://astro.build/">Astro</a> 构建</span>
+          <span>© {year} Liuyy682</span>
+        </div>
+        <div class="footer-links"><a href="/blog/">文章</a><a href="/about/">关于</a><a href="https://github.com/Liuyy682" rel="me">GitHub</a></div>
       </div>
     </footer>
   </body>

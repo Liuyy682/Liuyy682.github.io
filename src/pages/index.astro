@@ -6,20 +6,27 @@ import PostList from '../components/PostList.astro';
 const posts = (await getCollection('blog', ({ data }) => import.meta.env.PROD ? !data.draft : true))
   .sort((a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf())
   .slice(0, 3);
+const featured = posts[0];
+const formatter = new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
 ---
 
 <BaseLayout>
-  <section class="hero">
-    <p class="eyebrow">个人博客</p>
-    <h1>你好，我是 Liuyy682。</h1>
-    <p class="lead">我在这里记录技术、生活与创造过程中的想法。保持好奇，慢慢积累。</p>
-    <p class="hero-actions"><a class="button" href="/blog/">阅读文章</a></p>
-  </section>
-  <section aria-labelledby="latest-posts">
-    <div class="section-heading">
-      <h2 id="latest-posts">最近文章</h2>
-      <a href="/blog/">查看全部</a>
-    </div>
-    <PostList posts={posts} />
-  </section>
+  <div class="wrapper stack page-stack">
+    <section class="hero">
+      <div class="hero-copy stack gap-4">
+        <p class="eyebrow">个人博客</p>
+        <h1 class="hero-title">你好，我是 Liuyy682。</h1>
+        <p class="hero-tagline">我在这里记录技术、生活与创造过程中的想法。保持好奇，慢慢积累。</p>
+        <p class="hero-actions"><a class="button" href="/blog/">阅读文章 →</a><a class="button" href="/about/">关于我</a></p>
+      </div>
+      {featured && <a class="featured-card" href={`/blog/${featured.id}/`}><p class="eyebrow">最新文章 · {formatter.format(featured.data.publishDate)}</p><h2>{featured.data.title}</h2><p>{featured.data.description}</p></a>}
+    </section>
+    <section class="stack gap-15" aria-labelledby="latest-posts">
+      <div class="section-heading-row">
+        <header class="section-header"><p class="eyebrow">Writing</p><h2 id="latest-posts">最近文章</h2><p>关于技术、生活与创造的近期记录。</p></header>
+        <a class="button" href="/blog/">查看全部 →</a>
+      </div>
+      <PostList posts={posts} />
+    </section>
+  </div>
 </BaseLayout>
