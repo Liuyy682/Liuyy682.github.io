@@ -1,0 +1,21 @@
+---
+import type { CollectionEntry } from 'astro:content';
+
+interface Props { posts: CollectionEntry<'blog'>[]; }
+const { posts } = Astro.props;
+const formatter = new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
+---
+
+<ul class="post-list">
+  {posts.map((post) => (
+    <li class="post-item">
+      <a class="post-link" href={`/blog/${post.id}/`}>
+        <span class="post-title">{post.data.title}</span>
+        <p class="post-description">{post.data.description}</p>
+        <time class="post-date" datetime={post.data.publishDate.toISOString()}>
+          {formatter.format(post.data.publishDate)}
+        </time>
+      </a>
+    </li>
+  ))}
+</ul>

@@ -1,0 +1,17 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import PostList from '../../components/PostList.astro';
+
+const posts = (await getCollection('blog', ({ data }) => import.meta.env.PROD ? !data.draft : true))
+  .sort((a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf());
+---
+
+<BaseLayout title="文章" description="Liuyy682 的所有博客文章。">
+  <p class="eyebrow">Archive</p>
+  <h1>文章</h1>
+  <p class="lead">关于技术、生活与创造的记录。</p>
+  <div style="margin-top: 3rem">
+    <PostList posts={posts} />
+  </div>
+</BaseLayout>
