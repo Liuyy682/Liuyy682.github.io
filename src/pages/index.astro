@@ -1,32 +1,23 @@
----
-import { getCollection } from 'astro:content';
-import BaseLayout from '../layouts/BaseLayout.astro';
-import PostList from '../components/PostList.astro';
-
-const posts = (await getCollection('blog', ({ data }) => import.meta.env.PROD ? !data.draft : true))
-  .sort((a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf())
-  .slice(0, 3);
-const featured = posts[0];
-const formatter = new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
----
-
-<BaseLayout>
-  <div class="wrapper stack page-stack">
-    <section class="hero">
-      <div class="hero-copy stack gap-4">
-        <p class="eyebrow">个人博客</p>
-        <h1 class="hero-title">你好，我是 Liuyy682。</h1>
-        <p class="hero-tagline">我在这里记录技术、生活与创造过程中的想法。保持好奇，慢慢积累。</p>
-        <p class="hero-actions"><a class="button" href="/blog/">阅读文章 →</a><a class="button" href="/about/">关于我</a></p>
-      </div>
-      {featured && <a class="featured-card" href={`/blog/${featured.id}/`}><p class="eyebrow">最新文章 · {formatter.format(featured.data.publishDate)}</p><h2>{featured.data.title}</h2><p>{featured.data.description}</p></a>}
-    </section>
-    <section class="stack gap-15" aria-labelledby="latest-posts">
-      <div class="section-heading-row">
-        <header class="section-header"><p class="eyebrow">Writing</p><h2 id="latest-posts">最近文章</h2><p>关于技术、生活与创造的近期记录。</p></header>
-        <a class="button" href="/blog/">查看全部 →</a>
-      </div>
-      <PostList posts={posts} />
-    </section>
-  </div>
-</BaseLayout>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="刘耀阳的技术手记，记录 Agent 开发、后端工程与计算机基础的思考。">
+<meta name="theme-color" content="#f7f6f2"><title>耀阳 · 技术手记</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23c85b3a'/%3E%3Ctext x='12' y='43' fill='white' font-size='36' font-family='monospace'%3Ey.%3C/text%3E%3C/svg%3E">
+<link rel="canonical" href="https://liuyy682.github.io/">
+<meta property="og:title" content="耀阳 · 技术手记">
+<meta property="og:description" content="刘耀阳的技术手记，记录 Agent 开发、后端工程与计算机基础的思考。">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://liuyy682.github.io/">
+<link rel="stylesheet" href="/notes/style.css">
+</head>
+<body>
+<a href="#main" class="skip">跳至内容</a>
+<header class="site-header"><div class="header-inner"><a class="brand" href="#/" aria-label="耀阳技术手记首页"><span class="brand-mark">y<span>.</span></span><span>耀阳<span class="brand-divider">/</span><span class="brand-sub">技术手记</span></span></a><nav aria-label="主导航"><a href="#/" data-nav="home">首页</a><a href="#/articles" data-nav="articles">文章</a><a href="#/projects" data-nav="projects">项目</a><a href="#/about" data-nav="about">关于</a></nav><div class="header-actions"><button id="search-open" class="icon-button" aria-label="搜索文章"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg></button><span class="action-divider"></span><button id="theme" class="icon-button" aria-label="切换深色模式"><svg viewBox="0 0 24 24"><path d="M20.7 13.1A8.6 8.6 0 0 1 10.9 3.3a8.7 8.7 0 1 0 9.8 9.8Z"/></svg></button></div></div></header>
+<main id="main" tabindex="-1"><noscript><section class="page-heading"><h1>耀阳 · 技术手记</h1><p>记录 Agent 开发、后端工程与计算机基础的思考。请启用 JavaScript 浏览技术手记，或访问 <a href="/blog/">Markdown 归档</a>。</p></section></noscript></main>
+<footer><div class="footer-inner"><span class="footer-brand">y<span>.</span></span><span>保持好奇，持续构建。<small>© 2026 刘耀阳 · 技术手记</small></span><a href="https://github.com/Liuyy682" target="_blank" rel="noopener noreferrer">GitHub ↗</a><a href="/blog/">Markdown 归档 ↗</a><button id="top">回到顶部 ↑</button></div></footer>
+<dialog id="search-dialog"><form method="dialog" class="search-head"><label for="search-input">搜索手记</label><button aria-label="关闭搜索" class="close">×</button></form><div class="search-field"><span>⌕</span><input type="search" id="search-input" placeholder="搜索标题、技术或关键词…" autocomplete="off"></div><div id="search-results" aria-live="polite"></div><div class="search-foot">搜索标题、摘要与文章正文 <kbd>ESC 关闭</kbd></div></dialog>
+<script is:inline src="/notes/articles.js"></script>
+<script is:inline src="/notes/app.js"></script>
+</body></html>
