@@ -1,0 +1,25 @@
+bounded submit=1 accepted=true pool=1 queued=0
+bounded submit=2 accepted=true pool=2 queued=0
+bounded submit=3 accepted=true pool=2 queued=1
+bounded submit=4 accepted=true pool=2 queued=2
+bounded submit=5 accepted=true pool=3 queued=2
+bounded submit=6 accepted=true pool=4 queued=2
+bounded submit=7 accepted=false pool=4 queued=2
+bounded started_before_release=[1, 2, 5, 6] rejected=1
+bounded completed=6
+unbounded submit=1 accepted=true pool=1 queued=0
+unbounded submit=2 accepted=true pool=2 queued=0
+unbounded submit=3 accepted=true pool=2 queued=1
+unbounded submit=4 accepted=true pool=2 queued=2
+unbounded submit=5 accepted=true pool=2 queued=3
+unbounded submit=6 accepted=true pool=2 queued=4
+unbounded submit=7 accepted=true pool=2 queued=5
+unbounded started_before_release=[1, 2] rejected=0
+unbounded completed=7
+handoff submit=1 accepted=true pool=1 queued=0
+handoff submit=2 accepted=true pool=2 queued=0
+handoff submit=3 accepted=true pool=3 queued=0
+handoff submit=4 accepted=true pool=4 queued=0
+handoff submit=5 accepted=false pool=4 queued=0
+handoff started_before_release=[1, 2, 3, 4] rejected=1
+handoff completed=4

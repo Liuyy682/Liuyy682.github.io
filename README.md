@@ -24,7 +24,7 @@ npm run preview
 | --- | --- |
 | 首页外壳、导航、页脚与 SEO 信息 | `src/pages/index.astro` |
 | 首页、项目、个人介绍与交互 | `public/notes/app.js` |
-| 12 篇技术长文、标题、分类与标签 | `public/notes/articles.js` |
+| 15 篇技术长文、标题、分类与标签 | `public/notes/articles.js` |
 | 技术手记样式与移动端适配 | `public/notes/style.css` |
 
 技术手记沿用原站的 hash 路由，例如 `/#/article/agent-context`。分享完整链接即可直达文章，刷新不会产生 Pages 404。正文由 JavaScript 渲染；这次迁移保留原有内容格式，尚未将六篇长文转换成 Markdown 或为其生成独立 HTML 页面。
@@ -56,6 +56,19 @@ npm run preview
 运行 `python3 public/notes/experiments/2026-10-22/reproduce.py` 可重新生成演示输出。
 脚本仅依赖 Python 标准库；保存的输出为同目录 `results.json`，来源与摘要在 `public/notes/evidence/2026-10-22.md`。
 这些是受控模型实验，不是生产容量、跨用户安全或真实检索模型收益的验证。新文章通过 `evidenceNote` 单独标明证据范围，已有文章保留原说明。
+
+## 2026-10-22 并发与故障恢复三篇
+
+| 文章 | 路由 | 实际证据 |
+| --- | --- | --- |
+| Redis Lua 保证原子性，为什么限流还是可能出问题？ | `/#/article/redis-lua-rate-limit-boundaries` | 独立 Redis 实例上的响应丢失、回执去重、WRONGTYPE 后保留写入 |
+| 线程池还有空闲线程，任务为什么却在排队？ | `/#/article/thread-pool-queue-growth` | Java 21 真实线程池、三种队列与 CountDownLatch 控制日志 |
+| 异步任务取消了，为什么结果还是写回来了？ | `/#/article/async-cancel-late-results` | to_thread 取消后的实际线程执行、SQLite 条件提交与外部文件追加 |
+
+源码与原始输出在 `public/notes/experiments/2026-10-22-concurrency/`，运行说明与 SHA256 在 `public/notes/evidence/2026-10-22-concurrency.md`。
+需要 Java 21、Python 3.12 和本地 `redis-server`，不需要 Python 第三方包、项目服务或账号凭据。
+Redis 脚本只启动自己的临时 Unix socket 实例，关闭 TCP 和持久化，不连接或清空现有实例。
+这些实验验证局部机制，不代表生产压测、Redis 故障切换或远程取消协议已经通过验证。
 
 ## 原有 Markdown 文章
 

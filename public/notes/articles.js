@@ -5,6 +5,156 @@ const reference=(url,title,note)=>`<p class="reference"><a href="${url}" target=
 // date is the original writing date (YYYY.MM.DD); preserve it across edits and deployments.
 const articles=[
 {
+  "id": "redis-lua-rate-limit-boundaries",
+  "title": "Redis Lua 保证原子性，为什么限流还是可能出问题？",
+  "category": "后端工程",
+  "tags": [
+    "Redis",
+    "Lua",
+    "限流",
+    "故障恢复"
+  ],
+  "date": "2026.10.22",
+  "icon": "cache",
+  "desc": "在真实 Redis 上丢弃一次限流响应，再故意触发脚本错误，观察重复扣额和未回滚的计数，拆开原子执行、重试身份与持久性三个问题。",
+  "takeaway": "Lua 可以保护限流检查与更新不被其他命令穿插，但客户端仍可能不知道执行结果，运行时错误也不会自动回滚此前写入。安全重试需要另外定义身份和回执。",
+  "evidenceNote": "本篇已运行 Redis 7.0.15 的响应丢失、请求回执和脚本错误实验。使用独立临时实例；没有测试 Redis 崩溃、持久化恢复、主从切换或生产流量。",
+  "sections": [
+    [
+      "先让一次已经成功的扣额，看起来像失败",
+      "<p>设定一个很小的限流规则：一个用户在桶的有效期内最多获得两次放行。第一次请求到 Redis，脚本确认还有额度，把计数加到 1，返回允许。恰好这次响应没有到达应用，应用看到连接关闭。它究竟应该重试、拒绝，还是直接放行业务？</p><p>“Lua 是原子的”无法替应用回答这个问题。原子执行描述 Redis 内部命令怎样被观察；响应是否送达描述调用链有没有闭合。面试中关于限流故障的追问，让我把这两件事分开。这次写作实际启动了一个独立 Redis，用代理丢弃成功响应，再观察客户端重试带来的变化。</p><p>实验没有连到项目正在使用的 Redis：实例只监听临时 Unix socket，关闭 TCP、RDB 自动快照和 AOF，退出后销毁临时目录。关闭持久化只是为了隔离实验，不是生产建议。应用端只能看到 EOF；代理知道成功响应，是测试侧的真实结果记录，不会把答案偷偷交给恢复逻辑。</p><p>复现材料：<a href=\"/notes/experiments/2026-10-22-concurrency/redis_experiment.py\">实验驱动</a>、<a href=\"/notes/experiments/2026-10-22-concurrency/limit.lua\">原始限流脚本</a>、<a href=\"/notes/experiments/2026-10-22-concurrency/limit_receipt.lua\">带回执的脚本</a>、<a href=\"/notes/experiments/2026-10-22-concurrency/redis-results.json\">原始结果</a>，以及<a href=\"/notes/evidence/2026-10-22-concurrency.md\">运行环境、命令与证据索引</a>。文件包含实际运行代码和输出，不需要项目服务或账号凭据。</p>"
+    ],
+    [
+      "原子执行解决的是检查与更新之间的穿插",
+      "<p>先看一个没有请求身份的脚本。它读取当前计数，达到 2 就拒绝，否则增加计数；第一次增加时设置 60 秒过期。桶名在本实验中固定，过期时间从首次写入开始，不是按墙钟对齐的固定窗口。实验在过期前完成，未验证窗口切换。</p><figure class=\"code-example\"><figcaption>实际运行的 limit.lua · 核心逻辑</figcaption><pre><code>local n = tonumber(redis.call(&#x27;GET&#x27;, KEYS[1]) or &#x27;0&#x27;)\nif n &gt;= 2 then return {0, n} end\nn = redis.call(&#x27;INCR&#x27;, KEYS[1])\nif n == 1 then redis.call(&#x27;PEXPIRE&#x27;, KEYS[1], 60000) end\nreturn {1, n}</code></pre></figure><p>如果在客户端分别 GET、判断和 INCR，两次请求都可能先读到计数 1，再各自认为还有一个名额。脚本把判断与更新放在一次执行中，让后一个请求看到前一个请求留下的计数。这是它解决的竞争。<a href=\"https://redis.io/docs/latest/develop/programmability/eval-intro/\" target=\"_blank\" rel=\"noopener noreferrer\">Redis 的 Lua 文档</a>说明了脚本执行期间的阻塞与原子执行语义。</p><p>这里统计的是“被允许的评估次数”，拒绝不再增加计数。若业务要统计每一次访问尝试，计数规则就应不同。先明确计数对象很重要：后面说“重试多扣一次”，是相对于一次逻辑请求只应占一个名额的约定；如果限流本就按每次网络尝试收费，这不一定是错误。</p>"
+    ],
+    [
+      "把响应丢失放到执行完成之后",
+      "<p>实验代理接收客户端发出的 RESP 命令，转发到真实 Redis，完整读到返回值后不转发响应，直接关闭客户端连接。这样精确控制了故障位置：Redis 已执行，应用没拿到结果。它复现的是响应链路丢失，不是 Redis 执行中途宕机，也不是延迟达到某个超时阈值。</p><figure class=\"code-example\"><figcaption>受控故障时序 · 已运行</figcaption><pre><code>客户端发送限流请求 R1\n    ↓\n代理转发 → Redis 返回 [允许, 计数 1]\n    ↓\n代理保存测试证据，关闭连接，不转发响应\n    ↓\n客户端得到 EOF，执行结果未知\n    ↓\n客户端再次执行同一个无身份的限流脚本</code></pre></figure><div class=\"table-scroll\"><table><thead><tr><th scope=\"col\">动作</th><th scope=\"col\">Redis 返回或状态</th><th scope=\"col\">应用知道什么</th></tr></thead><tbody><tr><td>R1 第一次执行</td><td>[1, 1]；代理丢弃返回值</td><td>EOF，无法确认是否获得名额</td></tr><tr><td>R1 原样重试</td><td>[1, 2]</td><td>拿到放行，但同一逻辑请求占了两次</td></tr><tr><td>新的逻辑请求 R2</td><td>[0, 2]</td><td>被拒绝，额度已满</td></tr></tbody></table></div><p>这个结果没有突破每桶最多两次脚本放行的规则，却让两个额度都花在一个逻辑请求上，造成下一项误拒绝。因此不能只检查“Redis 计数有没有超过上限”；还要检查计数对应的是尝试、请求、用户动作，还是实际完成的业务。</p><p>反过来，响应未知时直接按成功处理，会在另一个执行历史里出错：假如请求根本没有到 Redis，业务就绕过了扣额。两种历史都可能表现为客户端没拿到响应，仅靠这个现象不能区分。应用必须选择保守拒绝、带身份核查或有限降级等明确策略。</p>"
+    ],
+    [
+      "给重试一个稳定身份，复用已经作出的决定",
+      "<p>第二组实验增加 request_id 和回执。回执绑定主体、原桶、操作与参数的摘要；第一次放行时保存决定和计数。同一 ID、相同摘要再来，返回已有回执；同一 ID、不同摘要则报冲突。脚本同时处理计数与回执，避免被其他正常请求穿插到中间。</p><figure class=\"code-example\"><figcaption>带回执脚本的决策顺序 · 完整代码可下载</figcaption><pre><code>查找 request_id 的回执\n  已存在且摘要相同 → 返回原放行决定，不再次加计数\n  已存在但摘要不同 → REQUEST_CONFLICT\n  不存在 → 检查额度\n      满额 → 拒绝\n      有额度 → 增加计数，保存回执，设置保留期</code></pre></figure><div class=\"table-scroll\"><table><thead><tr><th scope=\"col\">动作</th><th scope=\"col\">实际输出</th><th scope=\"col\">桶计数</th></tr></thead><tbody><tr><td>R1 第一次执行，响应丢失</td><td>测试代理看到 [1, 1, new]</td><td>1</td></tr><tr><td>R1 以同一身份重试</td><td>[1, 1, reused]</td><td>仍为 1</td></tr><tr><td>R1 改参数重试</td><td>REQUEST_CONFLICT</td><td>仍为 1</td></tr><tr><td>新请求 R2</td><td>[1, 2, new]</td><td>2</td></tr></tbody></table></div><p>复用的是 R1 当时得到的决定，回执里的 count 不保证等于当前桶计数。其他请求可能已经改变桶，不能把回执误当成实时查询。实验只缓存成功放行，拒绝是否也应缓存取决于产品语义：希望同一请求的决定永远稳定，还是允许它稍后再申请，需要另行约定。</p><p>这个方案仍有保留期前提。示例回执保留 60 秒，不能保证很久之后的旧请求仍去重；跨窗口重试不能随意改成当前桶再重新申请。实际协议要保存请求与原窗口的绑定，并明确恢复期限。Cluster 场景的多键还需要满足同槽要求；示例使用相同 hash tag，但本次运行的是单实例，未测试 Cluster。</p>"
+    ],
+    [
+      "脚本报错，为什么之前的 INCR 还在",
+      "<p>另一个常见误解是把脚本原子执行理解成数据库式的“全部成功或全部回滚”。我实际运行了下面的故障脚本：先向计数键 INCR，再故意对这个字符串键执行 LPUSH，最后才设置过期时间。第二条命令会因类型错误中止执行。</p><figure class=\"code-example\"><figcaption>故意构造的错误 · 请仅在隔离实例复现</figcaption><pre><code>redis.call(&#x27;INCR&#x27;, KEYS[1])\nredis.call(&#x27;LPUSH&#x27;, KEYS[1], &#x27;x&#x27;)  -- 对字符串执行列表命令\nredis.call(&#x27;PEXPIRE&#x27;, KEYS[1], 60000)</code></pre></figure><div class=\"table-scroll\"><table><thead><tr><th scope=\"col\">检查项</th><th scope=\"col\">Redis 7.0.15 实际结果</th><th scope=\"col\">解释</th></tr></thead><tbody><tr><td>脚本结果</td><td>WRONGTYPE</td><td>执行没有正常结束</td></tr><tr><td>GET 计数键</td><td>1</td><td>前面的 INCR 已生效</td></tr><tr><td>PTTL 计数键</td><td>-1</td><td>键存在，但没有过期时间</td></tr></tbody></table></div><p>所以一个返回错误的调用仍可能改变状态。这里不是其他命令插进了脚本，而是脚本自己的后续语句失败，已完成的写入留了下来。把设置过期放在最后，却只考虑正常返回，会留下不自动消失的限流键。</p><p>设计时应在写入前尽量检查参数、键类型和必要前提，减少可预见的中途错误；写入后的失败仍需有观测与修复路径。带回执脚本也不因此自动拥有回滚：若加计数之后、保存回执之前出错，仍可能出现计数与回执不一致。本文示例使用专用键、固定类型来验证正常路径上的响应丢失，不把它当成已覆盖内存不足、键污染和所有运行时故障的生产限流器。</p>"
+    ],
+    [
+      "获得名额之后，业务执行还需要自己的协议",
+      "<p>限流允许意味着这一请求获得了准入资格，不意味着业务已经成功。假设拿到名额后应用崩溃，业务可能没有执行；如果拿到名额、执行完业务后才丢失响应，重新取得同一回执也不应该再次执行业务。限流 request_id 与业务 operation_id 可以关联，但两层的去重责任要分别落实。</p><p>也不能看到业务失败就无条件 DECR 退还额度。一个超时结果可能仍在远端执行；重复补偿又可能退两次；原桶已经过期时，对新桶操作更会改变错误的统计周期。如果需求只是限制进入系统的请求速率，执行失败仍消耗一次准入额度往往更容易定义。若额度代表可退款的业务预算，则需要独立的占用、确认、释放状态，而不仅是一个数字。</p><p>缓存回执防止同一逻辑请求重复占额，也要防止客户端反复拿同一 ID 的允许结果触发多次昂贵工作。因此回执只证明“这项操作曾获准”，执行端仍需把这项操作只做一次或安全核验。否则限流去重反而成为绕过访问次数限制的入口。</p>"
+    ],
+    [
+      "发生故障时，到底选择限制什么风险",
+      "<p>Redis 不可达时，fail-open 可以保可用性，但可能让下游过载；fail-closed 可以保护预算，却会拒绝本来有额度的请求。选择取决于保护对象，例如昂贵模型调用、公开查询或登录尝试的代价并不一样。可设计有限的本地应急额度，但多个实例各自放行的额度会累加，需要在风险预算里计算。</p><p>持久性又是另一个维度：进程恢复或副本切换之后能恢复哪些计数和回执，取决于部署与持久化、复制策略，不能从 Lua 原子性推出。本文关闭持久化的临时实例没有做这类实验，也没有给出“故障切换不丢额度”的承诺。</p><p>我会分别观察脚本成功、明确拒绝、执行结果未知、回执复用和脚本错误的数量；计数键无 TTL 的异常需要单独告警。不要把 Redis 连接错误当成达到额度上限返回同一个错误码，否则无法区分应该等待窗口恢复，还是修复依赖故障。</p>"
+    ],
+    [
+      "这次实验改变了我会怎样回答限流问题",
+      "<p>现在可以拿出三组具体证据：丢弃真实成功响应后，原脚本把一次请求计成两次；稳定身份与回执让重复请求保持一次计数；故意类型错误留下计数 1 与 PTTL=-1。它们分别约束重试、准入身份和错误处理，不能合并成一句“Lua 保证一致性”。</p><p>未验证的部分也清楚：真实故障切换、窗口跨越、回执清理、内存不足和业务执行去重都还需要各自的实验。后续完善限流器时，我会围绕这些缺口逐个验收，而不是仅增加脚本行数或重试次数。</p><p>复现材料：<a href=\"/notes/experiments/2026-10-22-concurrency/redis_experiment.py\">实验驱动</a>、<a href=\"/notes/experiments/2026-10-22-concurrency/limit.lua\">原始限流脚本</a>、<a href=\"/notes/experiments/2026-10-22-concurrency/limit_receipt.lua\">带回执的脚本</a>、<a href=\"/notes/experiments/2026-10-22-concurrency/redis-results.json\">原始结果</a>，以及<a href=\"/notes/evidence/2026-10-22-concurrency.md\">运行环境、命令与证据索引</a>。文件包含实际运行代码和输出，不需要项目服务或账号凭据。</p><p>外部副作用与未知结果的处理，可继续阅读 <a href=\"#/article/agent-unknown-outcome\">工具执行成功了，但 Agent 没收到结果，重试安全吗？</a>。</p>"
+    ]
+  ]
+},
+{
+  "id": "thread-pool-queue-growth",
+  "title": "线程池还有空闲线程，任务为什么却在排队？",
+  "category": "计算机基础",
+  "tags": [
+    "Java",
+    "线程池",
+    "并发",
+    "背压"
+  ],
+  "date": "2026.10.22",
+  "icon": "flow",
+  "desc": "固定核心 2、最大 4，用屏障让任务保持运行，逐个提交观察扩容与拒绝，再对照三种队列解释“没用满最大线程数”的原因。",
+  "takeaway": "maximumPoolSize 是增长上限，不是已创建的空闲线程数。核心线程达到后，能入队的任务通常先入队；队列选择决定线程增长与拒绝发生在哪里。",
+  "evidenceNote": "本篇已在 OpenJDK 21.0.12.1 上运行三种队列的 ThreadPoolExecutor 对照。日志来自屏障控制的真实线程，不是时序模拟；未测生产吞吐或延迟。",
+  "sections": [
+    [
+      "先核对：真有空闲线程，还是最大值还没用满",
+      "<p>配置写着 corePoolSize=2、maximumPoolSize=4，连续提交四个长任务，监控却显示只有两个线程，另外两个任务排队。直觉上像是“还有两条空闲线程，为什么不用”。但 maximum=4 只表示最多可以增长到四条，不表示另外两条已经创建并且空闲。</p><p>这个问题与视频分析的容量追问直接相关：如果误把配置上限当成有效并发，前面的吞吐计算会从输入就错。这次我写了一个真实 Java 实验，固定任务不结束，逐次观察线程数与队列长度；再只改变队列，检查结果是否仍然相同。</p><p>如果监控已经证明存在活着且长期空闲的工作线程，同时队列持续积压，就需要继续检查线程状态、队列实现、任务是否真的属于同一执行器，以及采样时序。本文复现的是“最大值尚有余量但没有继续建线程”，不能包办所有看起来像闲置的情况。</p><p>复现材料：<a href=\"/notes/experiments/2026-10-22-concurrency/PoolExperiment.java\">Java 实验源码</a>、<a href=\"/notes/experiments/2026-10-22-concurrency/pool-results.txt\">完整执行日志</a>，以及<a href=\"/notes/evidence/2026-10-22-concurrency.md\">运行环境、命令与证据索引</a>。文件包含实际运行代码和输出，不需要项目服务或账号凭据。</p>"
+    ],
+    [
+      "把提交规则翻译成可以预测下一步的分支",
+      "<p>对于本文使用的标准 ThreadPoolExecutor，在运行状态下，可以用三步理解核心决策：线程数少于 core 时优先创建线程；达到 core 后尝试把任务加入队列；队列不接受时，再尝试增长到 max，增长失败才进入拒绝处理。shutdown 等并发状态变化还有复查分支，不能把这段简化规则当完整源码。</p><figure class=\"code-example\"><figcaption>正常运行条件下的决策摘要</figcaption><pre><code>execute(task)\n  workerCount &lt; core → 尝试启动 worker，直接执行 task\n  否则 queue.offer(task) 成功 → 留在队列等 worker 获取\n  否则 workerCount &lt; max → 尝试启动 worker，直接执行 task\n  否则 → 调用拒绝策略</code></pre></figure><p>因此影响“什么时候扩容”的不只是 max，还有 queue.offer 是否愿意接收。一个还能存入任务的队列，会让请求停在入队分支。把 max 从 4 改成 40，如果队列仍然接收全部任务，不能指望执行线程自动涨到 40。这一规则可以与 <a href=\"https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ThreadPoolExecutor.html\" target=\"_blank\" rel=\"noopener noreferrer\">JDK 21 的 ThreadPoolExecutor 文档</a>核对；后面用日志验证具体边界。</p>"
+    ],
+    [
+      "实验怎样保证任务不会在观测前悄悄完成",
+      "<p>所有工作任务启动后先记录自己的编号，再等待同一个 CountDownLatch。主线程负责逐个 execute，若创建了新 worker，就等待该任务的 entered 屏障确认它已进入 run，然后采集 poolSize 和 queue.size。直到所有观测结束，才统一放开 release。</p><p>这样第一个任务不会在第六个提交前偶然结束，队列也不会因为 CPU 调度恰好快一点而腾空。实验没有使用 sleep 来猜测任务是否已启动；等待都有超时，防止错误实现让复现无限挂住。线程启动先后仍可能变化，因此“已启动任务集合”在输出前排序，不冒充它们的精确启动时间顺序。</p><figure class=\"code-example\"><figcaption>实际实验的关键控制</figcaption><pre><code>CountDownLatch release = new CountDownLatch(1);\n// 每个任务：\nstarted.add(id);\nentered.countDown();\nrelease.await(10, TimeUnit.SECONDS);\n\n// 主线程提交并采集；最后统一执行：\nrelease.countDown();\npool.shutdown();\npool.awaitTermination(5, TimeUnit.SECONDS);</code></pre></figure><p>固定参数是 core=2、max=4、keepAlive=60 秒、AbortPolicy，不预启动核心线程。第一组使用容量 2 的 ArrayBlockingQueue，共提交七个任务。实验结束后还检查成功完成数是否等于被接受的任务数，避免只看提交日志却漏掉任务没有执行。</p>"
+    ],
+    [
+      "有界队列：第 5 个任务为什么越过第 3 个",
+      "<div class=\"table-scroll\"><table><thead><tr><th scope=\"col\">提交任务</th><th scope=\"col\">接受？</th><th scope=\"col\">池内线程数</th><th scope=\"col\">队列长度</th><th scope=\"col\">由哪条分支决定</th></tr></thead><tbody><tr><td>1</td><td>是</td><td>1</td><td>0</td><td>不足 core，创建 worker</td></tr><tr><td>2</td><td>是</td><td>2</td><td>0</td><td>不足 core，创建 worker</td></tr><tr><td>3</td><td>是</td><td>2</td><td>1</td><td>队列接收</td></tr><tr><td>4</td><td>是</td><td>2</td><td>2</td><td>队列接收</td></tr><tr><td>5</td><td>是</td><td>3</td><td>2</td><td>队列已满，创建非核心 worker</td></tr><tr><td>6</td><td>是</td><td>4</td><td>2</td><td>队列已满，继续增长到 max</td></tr><tr><td>7</td><td>否</td><td>4</td><td>2</td><td>队列满且达到 max，AbortPolicy 抛异常</td></tr></tbody></table></div><p>放开屏障前，日志里的已启动任务集合是 <code>[1, 2, 5, 6]</code>，而 3、4 仍在队列。这个结果比“达到核心之后先入队”更值得注意：后到的 5、6 被直接交给新 worker，先于队列里的 3、4 开始。</p><p>ArrayBlockingQueue 的 FIFO 约束是队列中元素的取出顺序，不能推导为整个线程池严格按提交顺序开始，更不保证按提交顺序完成。新 worker 的首任务绕过了队列；即使所有任务都排队，多个 worker 的运行速度也不一致。如果业务要求同会话顺序，不能仅靠把任务塞进 FIFO 队列。</p><p>最终日志显示六个接受任务全部完成，第七个明确被拒绝。这里拒绝发生在调用 execute 的线程，调用方有机会把它转换成可观察的受理失败。如果捕获异常后仍返回“任务已提交”，就把可见的容量边界变成了任务丢失。</p>"
+    ],
+    [
+      "只换队列，为什么三组结果不同",
+      "<p>第二组使用默认容量的 LinkedBlockingQueue，第三组使用不保存任务的 SynchronousQueue。其他 core、max 与拒绝策略不变；第三组提交到第五个就足以观察拒绝。真实输出如下。</p><div class=\"table-scroll\"><table><thead><tr><th scope=\"col\">队列</th><th scope=\"col\">提交数量</th><th scope=\"col\">放开前线程数</th><th scope=\"col\">排队数</th><th scope=\"col\">拒绝数</th></tr></thead><tbody><tr><td>ArrayBlockingQueue(2)</td><td>7</td><td>4</td><td>2</td><td>1</td></tr><tr><td>LinkedBlockingQueue()</td><td>7</td><td>2</td><td>5</td><td>0</td></tr><tr><td>SynchronousQueue()</td><td>5</td><td>4</td><td>0</td><td>1</td></tr></tbody></table></div><p>LinkedBlockingQueue 的默认容量极大，本例七个任务远没有填满它，所以到 core=2 后持续入队，max=4 没有参与扩容。这不是 max 参数失效，而是触发它的条件没有发生。“无界”也是工程上的习惯说法：内存和实现上限仍有限，无限接收并不存在。</p><p>SynchronousQueue 不提供存储空间，需要把任务直接交给等待接收者。本例所有已创建 worker 都被屏障占住，没有人接收后续任务，于是第 3、4 项推动建线程，第 5 项被拒绝。若有 worker 正在等待获取任务，直接交接可能成功，因此也不能把它概括成“每来一个任务就创建线程”。</p><p>三种队列分别把过载压力放在等待、线程增长和即时拒绝的不同位置。本文没有从这个小实验得出某一种队列吞吐更高；它测的是决策路径，不是性能排名。</p>"
+    ],
+    [
+      "回到项目配置，先预测能观察到什么",
+      "<p>DOVideo-AI 的 ThreadPoolConfig 把 ASR 执行器配置为核心 4、最大 8、队列 50，并使用 AbortPolicy。这提供了一个可检查的假设：在标准队列行为、持续占满核心线程、没有任务完成的条件下，接下来 50 个任务可以排队，只有后续无法入队的提交才会推动更多线程启动。</p><p>这个推断只描述该执行器。上一篇容量分析已经沿调用链区分了消费者与 ASR/OCR 分支；不能把 ASR 的 max=8 当成整条视频消费链的并发。还要确认每次提交代表一个视频分支、一个音频片段，还是另一种工作单位，才能把线程数换算成视频处理能力。</p><p>大队列的好处是容纳短时突发，但会推迟扩容与拒绝，也会增加排队时间。如果任务在执行之前就已过期，最终“全部执行成功”也不能代表用户体验合格。缩小队列让线程更早增长，则会更早争用 CPU、磁盘或第三方额度；调整前需要明确下游还能承受多少并发。</p>"
+    ],
+    [
+      "拒绝策略和任务依赖，会改变实际后果",
+      "<p>AbortPolicy 把饱和暴露成异常。CallerRunsPolicy 则可能让提交者直接执行任务，把压力传回上游，但它会改变调用线程的工作内容：提交者若是 HTTP、MQ 或事件循环线程，就可能被长任务占住。在执行器已经关闭的情况下，其处理也不同于正常饱和，不能把它当作任何时候都保证执行的保险。</p><p>还有一种不靠满队列也能卡住的情况：两个核心 worker 都在执行父任务，父任务各自提交子任务到同一无界队列，然后同步等待子任务完成。子任务能顺利入队，因此不会触发增长；两个 worker 又都在等它们。这形成等待环。此处是机制推演，本文没有另外运行这组死锁实验。</p><p>解决思路不是无限增大 max，而是拆掉等待关系：避免在占用同一资源池时同步等待它的后续工作，使用完成回调或异步组合，必要时为具有不同资源需求的阶段设置明确的执行边界。独立线程池仍可能争同一块 CPU 或外部额度，隔离了队列不代表隔离了所有资源。</p>"
+    ],
+    [
+      "我会怎样观察一次真实配置调整",
+      "<p>首先同时采集 poolSize、activeCount、queue.size、拒绝数，以及任务从提交到开始、从开始到结束的时间。poolSize 与 max 的差值只能说明增长余量；activeCount 等运行指标属于采样估计，短瞬间不一致不能直接诊断线程池损坏。还要关联线程栈，看 worker 是计算、阻塞 I/O，还是等待其他任务。</p><p>然后固定任务构成，分别改变队列容量或核心线程数，比较完成速率和排队时间。只改 max 而队列一直不满，预期不会改变本实验所解释的并发；如果真实观察不同，就检查运行时配置、队列类型与是否存在动态调整。假设应该能被观测推翻，而不是把所有结果都解释成调参有效。</p><p>本次工作已经提供三个可重跑的队列对照，以及第 5、6 项越过第 3、4 项的具体日志。它把“还有空闲线程”的模糊描述改成了可验证的问题：到底有几个 worker、谁在等待、队列是否接收、哪次提交触发了增长。生产吞吐和最优参数仍需用真实负载测量。</p><p>复现材料：<a href=\"/notes/experiments/2026-10-22-concurrency/PoolExperiment.java\">Java 实验源码</a>、<a href=\"/notes/experiments/2026-10-22-concurrency/pool-results.txt\">完整执行日志</a>，以及<a href=\"/notes/evidence/2026-10-22-concurrency.md\">运行环境、命令与证据索引</a>。文件包含实际运行代码和输出，不需要项目服务或账号凭据。</p><p>关于有效并发如何影响积压，可继续阅读 <a href=\"#/article/video-analysis-capacity\">视频分析请求涨了十倍，瓶颈到底在哪里？</a>。</p>"
+    ]
+  ]
+},
+{
+  "id": "async-cancel-late-results",
+  "title": "异步任务取消了，为什么结果还是写回来了？",
+  "category": "后端工程",
+  "tags": [
+    "asyncio",
+    "任务取消",
+    "状态机",
+    "并发控制"
+  ],
+  "date": "2026.10.22",
+  "icon": "flow",
+  "desc": "用真实后台线程复现取消后继续执行，再通过 SQLite 条件提交挡住迟到成功，追踪取消状态、执行代次与外部副作用各自的边界。",
+  "takeaway": "取消等待者不等于停止底层工作。取消与完成需要争用同一个受控提交点，旧执行代次不能发布结果；即使提交被拒绝，外部副作用仍可能已经发生。",
+  "evidenceNote": "本篇已运行 asyncio.to_thread、线程屏障和 SQLite 提交竞争实验。文件追加模拟独立副作用；没有验证远程 API 取消、进程终止或分布式调度。",
+  "sections": [
+    [
+      "取消按钮亮了，任务就真的停止了吗",
+      "<p>用户点击取消，页面显示“已取消”。过几秒，一条成功事件又到达，结果文件也写出来了。这个现象可能涉及三个不同动作：停止当前协程继续等待，禁止这次执行提交结果，以及让实际计算或外部服务停止。只完成其中一个，不能把另外两个也宣布完成。</p><p>这一选题从会话执行与恢复讨论延伸而来，不把标题冒充面试官原话。本次我用 asyncio.to_thread 启动真实线程，在线程继续前先取消等待它的 Task，再放行线程；随后对比无条件更新和带状态、执行代次的提交。这样能看到“取消后还会发生什么”，而不只是画一个理想状态机。</p><p>项目里 MyClaw 的停止会话路径会找到活动 Task，调用 cancel 并等待它收尾。这个源码动作说明上层尝试停止当前 turn，不能单凭它证明所有底层线程、子进程或远程调用都已经停止。本文不据此宣称项目存在某个已复现的线上取消缺陷，后面的故障发生在独立实验里。</p><p>复现材料：<a href=\"/notes/experiments/2026-10-22-concurrency/cancel_experiment.py\">取消与提交实验</a>、<a href=\"/notes/experiments/2026-10-22-concurrency/cancel-results.json\">原始结果</a>，以及<a href=\"/notes/evidence/2026-10-22-concurrency.md\">运行环境、命令与证据索引</a>。文件包含实际运行代码和输出，不需要项目服务或账号凭据。</p>"
+    ],
+    [
+      "把取消拆成四个可以分别确认的事实",
+      "<div class=\"table-scroll\"><table><thead><tr><th scope=\"col\">层次</th><th scope=\"col\">具体动作</th><th scope=\"col\">可以承诺什么</th></tr></thead><tbody><tr><td>用户意图</td><td>记录取消请求</td><td>服务知道用户不再需要继续</td></tr><tr><td>调度与状态</td><td>撤销当前执行的提交权</td><td>该代执行不能再发布成功结果</td></tr><tr><td>本地执行</td><td>请求 Task 取消、通知线程或终止子进程</td><td>取决于具体执行单元是否响应</td></tr><tr><td>外部副作用</td><td>远程取消、幂等核验或补偿</td><td>依赖目标系统的协议与可逆性</td></tr></tbody></table></div><p>asyncio 的 Task.cancel 会请求在协程中注入 CancelledError。协程可以在清理阶段处理它，取消并不是任意指令位置的强制终止。<a href=\"https://docs.python.org/3.12/library/asyncio-task.html\" target=\"_blank\" rel=\"noopener noreferrer\">Python 的 Task 文档</a>解释了这类协作式取消行为。</p><p>to_thread 的工作运行在另一个线程。取消等待它的协程，不会让已经开始的 Python 线程在任意位置被安全杀掉。接下来不靠这句说明直接推导结果，而是用屏障保证线程已经启动、又尚未写文件，然后实际取消等待者。</p>"
+    ],
+    [
+      "第一组实验：取消后仍然追加文件、写入成功",
+      "<p>数据库中只有一项 job-1，初始 state=RUNNING、epoch=1。工作线程启动后发出 ready 信号，并等待 release。控制协程收到 ready 后，把数据库改为 CANCELLED、epoch=2，记录取消事件，然后 cancel 掉等待 to_thread 的 Task，确认收到 CancelledError。</p><p>直到这些步骤完成，实验才设置 release。工作线程继续向独立文件追加一行，再把任务状态无条件改成 SUCCEEDED，并记录成功事件。文件写入在任务状态事务之外，用来模拟无法跟数据库提交一起撤销的副作用。</p><figure class=\"code-example\"><figcaption>已运行的先后关系 · 不依赖 sleep</figcaption><pre><code>worker 已启动 → 等待 release\n控制协程：RUNNING/1 → CANCELLED/2，提交取消事件\n控制协程：Task.cancel() → await 得到 CancelledError\n控制协程：放开 release\nworker：追加文件 → 无条件写入 SUCCEEDED → 提交成功事件</code></pre></figure><div class=\"table-scroll\"><table><thead><tr><th scope=\"col\">观察项</th><th scope=\"col\">实际结果</th><th scope=\"col\">说明</th></tr></thead><tbody><tr><td>等待者取消</td><td>true</td><td>上层 Task 确实已取消</td></tr><tr><td>底层线程继续</td><td>true</td><td>取消没有终止已经启动的线程</td></tr><tr><td>文件追加次数</td><td>1</td><td>副作用发生在取消记录之后</td></tr><tr><td>最终任务状态</td><td>SUCCEEDED</td><td>迟到提交覆盖了 CANCELLED</td></tr><tr><td>事件顺序</td><td>CANCELLED → SUCCEEDED</td><td>客户端也可能收到自相矛盾的终态</td></tr></tbody></table></div><p>这个实验没有伪造“取消调用没成功”：等待者确实收到异常，任务数据库也确实记录过取消。错误发生在后续提交没有检查自己是否仍有权发布结果。由此需要修复的是提交协议，而不仅是多调用一次 cancel。</p>"
+    ],
+    [
+      "让取消和完成在同一个提交点竞争",
+      "<p>第二组实验保持同样时序，只修改成功提交条件：必须仍是 RUNNING，并且 epoch 仍等于当前 worker 启动时拿到的 1。状态更新和成功事件写入放在同一数据库事务中，只有影响行数为 1 才写成功事件。</p><figure class=\"code-example\"><figcaption>实验中的条件提交</figcaption><pre><code>UPDATE jobs\nSET state=&#x27;SUCCEEDED&#x27;, result=&#x27;late&#x27;\nWHERE id=&#x27;job-1&#x27; AND state=&#x27;RUNNING&#x27; AND epoch=1;\n\n-- 仅当 rowcount == 1：\nINSERT INTO events(kind) VALUES (&#x27;SUCCEEDED&#x27;);\n-- 两步属于同一事务</code></pre></figure><div class=\"table-scroll\"><table><thead><tr><th scope=\"col\">观察项</th><th scope=\"col\">无条件提交</th><th scope=\"col\">状态 + epoch 条件提交</th></tr></thead><tbody><tr><td>迟到成功更新行数</td><td>1</td><td>0</td></tr><tr><td>最终状态</td><td>SUCCEEDED</td><td>CANCELLED</td></tr><tr><td>持久事件</td><td>取消、成功</td><td>只有取消</td></tr><tr><td>文件追加次数</td><td>1</td><td>仍然是 1</td></tr></tbody></table></div><p>这里被修复的是“谁能提交任务结果”。影响行数为 0 必须进入显式的过期结果处理，不能继续广播成功、覆盖业务结果或向调用方返回“保存成功”。如果先发 SSE 成功事件再检查数据库，前端仍可能看到错误结论；可以先提交状态和持久事件，再由发布器投递。跨进程发布的重试与去重还需要另行设计。</p><p>取消本身也应使用条件更新，例如只把 RUNNING 改为 CANCELLED 并增加 epoch，而不是无条件覆盖终态。成功先提交时，后来的取消应返回“已经完成”或相应状态；取消先提交时，迟到成功应失败。选择由哪个受控提交先成功来决定结果，才能解释并发下的行为，而不是承诺客户端点击瞬间一定赢。</p>"
+    ],
+    [
+      "为什么只判断 RUNNING 仍然不够",
+      "<p>再增加一个场景：同一个任务 ID 被取消后重新执行。状态先从 RUNNING 变成 CANCELLED，再变回 RUNNING。旧 worker 此时恢复，只检查 state=RUNNING，会误以为仍是自己的那次执行。这是状态值恢复相同、执行身份已经变化的问题。</p><figure class=\"code-example\"><figcaption>实际执行的重启序列</figcaption><pre><code>原执行：RUNNING，epoch=1\n取消后：CANCELLED，epoch=2\n重新执行：RUNNING，epoch=3\n\n旧 worker 携带 epoch=1 返回\n  只检查 RUNNING → 更新 1 行，错误接纳旧结果\n  同时检查 epoch=1 → 更新 0 行，拒绝旧结果\n新 worker 携带 epoch=3 → 更新 1 行</code></pre></figure><p>脚本还验证了成功先发生的分支：当前 epoch=3 的结果提交成功后，再执行仅匹配 RUNNING 的取消，影响行数为 0。因此两个方向都由数据库条件决定，不需要假设某个网络请求先到就一定先提交。</p><p>epoch 描述同一任务的执行代次。它应由可信调度状态单调推进，不能由 worker 随意填写，也不能在重试时从客户端重新生成并丢掉关联。采用全新 attempt_id 也能表达类似关系；关键是旧执行不能与新执行共享同一个提交资格。</p>"
+    ],
+    [
+      "副作用还在，为什么仍然值得拒绝迟到结果",
+      "<p>修复后的实验仍写入了一行文件。这不是条件提交失效，而是文件追加发生在数据库事务外：数据库可以拒绝任务状态变更，却不能倒放已经发生的另一个系统的操作。把 CANCELLED 解释成“所有操作都被撤销”，会再次越过证据边界。</p><p>不同副作用需要不同处理。查询型工作可以丢弃迟到响应；生成文件可以写入私有临时对象，仅在条件提交成功后发布引用，未发布对象通过独立清理流程回收；转账或发消息通常不能靠删除临时文件解决，需要目标端操作身份、结果查询和业务补偿。</p><p>即使先检查数据库“还在 RUNNING”，检查与外部动作之间仍有窗口：检查通过后用户取消，worker 接着发送消息。所以把检查放到工具调用前有助于尽快停止，却不是最终保证。若要求取消后绝不产生某项副作用，需要执行端参与授权、版本或提交协议；目标端不支持时，应明确不可取消点和可能继续发生的动作。</p><p>前端文案也应匹配实际语义：可以分别展示“取消请求已记录”“已停止继续调度”“远端仍在处理”。如果产品选择立即把任务标为取消，本篇的 CANCELLED 应理解为这次执行失去发布资格，而不是所有资源已回收、所有效果已回滚。</p>"
+    ],
+    [
+      "尽早停下来，与可靠挡住提交，需要同时做",
+      "<p>状态条件处理最终正确性，协作取消减少资源浪费，两者用途不同。长循环可以在阶段边界检查停止信号；阻塞 I/O 需要合理超时；子进程要明确终止对象和清理方式；第三方服务若提供取消接口，要核对返回的是接受取消请求还是已经停止。</p><p>在 asyncio 中捕获 CancelledError 做必要清理后，通常应继续传播，避免上层误以为正常完成。清理也要有期限，不能为了等待一个无法停止的线程，让用户取消请求永远不返回。与此同时，底层仍运行的任务需要留有记录，不能在前端隐藏后就失去追踪。</p><p>MyClaw 的活动 Task 停止路径为这类分析提供了入口，视频分析中的分支取消也会遇到类似问题；但是否能停止 FFmpeg、HTTP 请求或 SDK 内部线程，必须检查各自调用和清理路径。本次只验证 to_thread 的具体行为，没有把结果推广成所有框架、客户端库的取消语义。</p>"
+    ],
+    [
+      "验收时，不要只检查接口返回了 cancelled",
+      "<p>我会把取消验收拆成竞争矩阵。对于已经有代码覆盖的格子保留输出；对于尚未实现的外部协议，保留为待测项，不用绿色通过标记代替证据。</p><div class=\"table-scroll\"><table><thead><tr><th scope=\"col\">场景</th><th scope=\"col\">本次证据</th><th scope=\"col\">验收重点</th></tr></thead><tbody><tr><td>取消先提交，旧结果随后到达</td><td>已运行：条件更新 0 行</td><td>终态与成功事件不被覆盖</td></tr><tr><td>成功先提交，取消随后到达</td><td>已运行：取消更新 0 行</td><td>如实返回已完成，不伪造取消成功</td></tr><tr><td>取消后重新执行，旧 worker 返回</td><td>已运行：state-only 通过，epoch 条件拒绝</td><td>执行身份不能混用</td></tr><tr><td>等待者已取消，底层线程继续</td><td>已运行：文件追加 1 次</td><td>区分上层停止与副作用</td></tr><tr><td>远程取消超时、worker 失联或进程崩溃</td><td>本次未运行</td><td>核验外部结果、回收资源并恢复事件</td></tr></tbody></table></div><p>这次得到的关键结论是可重复的：取消信号无法替代提交检查；状态名不足以区分不同执行；禁止成功发布也不等于撤销副作用。下一步完善系统时，应该沿这三条边界增加具体能力，而不是给取消按钮加一个更确定的提示。</p><p>复现材料：<a href=\"/notes/experiments/2026-10-22-concurrency/cancel_experiment.py\">取消与提交实验</a>、<a href=\"/notes/experiments/2026-10-22-concurrency/cancel-results.json\">原始结果</a>，以及<a href=\"/notes/evidence/2026-10-22-concurrency.md\">运行环境、命令与证据索引</a>。文件包含实际运行代码和输出，不需要项目服务或账号凭据。</p><p>多实例中的执行归属，可结合 <a href=\"#/article/multi-user-agent-boundaries\">把单用户 Agent 开放给 500 人</a> 阅读；外部动作恢复见 <a href=\"#/article/agent-unknown-outcome\">工具结果未知时的重试设计</a>。</p>"
+    ]
+  ]
+},
+{
   "id": "video-analysis-capacity",
   "title": "视频分析请求涨了十倍，瓶颈到底在哪里？",
   "category": "后端工程",

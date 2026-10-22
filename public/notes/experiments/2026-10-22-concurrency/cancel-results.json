@@ -1,0 +1,33 @@
+{
+  "protocol": "events control actual thread; SQLite transactions; append outside state transaction",
+  "unguarded": {
+    "awaiter_cancelled": true,
+    "worker_continued": true,
+    "effect_count": 1,
+    "final_state": "SUCCEEDED",
+    "epoch": 2,
+    "late_commit_rows": 1,
+    "events": [
+      "CANCELLED",
+      "SUCCEEDED"
+    ]
+  },
+  "guarded": {
+    "awaiter_cancelled": true,
+    "worker_continued": true,
+    "effect_count": 1,
+    "final_state": "CANCELLED",
+    "epoch": 2,
+    "late_commit_rows": 0,
+    "events": [
+      "CANCELLED"
+    ]
+  },
+  "restarted_job": {
+    "state_only_old_worker_rows": 1,
+    "epoch_guard_old_worker_rows": 0,
+    "current_worker_rows": 1,
+    "cancel_after_success_rows": 0
+  },
+  "limits": "No remote API cancellation, process kill, distributed scheduler or network partition tested."
+}

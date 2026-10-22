@@ -1,0 +1,49 @@
+{
+  "redis_version": "7.0.15",
+  "protocol": "isolated UNIX socket; persistence disabled; proxy drops reply after backend completion",
+  "without_receipt": {
+    "first": {
+      "backend_reply": [
+        1,
+        1
+      ],
+      "client_result": "EOF_UNKNOWN"
+    },
+    "retry": [
+      1,
+      2
+    ],
+    "next_logical_request": [
+      0,
+      2
+    ]
+  },
+  "with_receipt": {
+    "first": {
+      "backend_reply": [
+        1,
+        1,
+        "new"
+      ],
+      "client_result": "EOF_UNKNOWN"
+    },
+    "retry": [
+      1,
+      1,
+      "reused"
+    ],
+    "count_after_retry": 1,
+    "conflicting_payload_rejected": true,
+    "next_logical_request": [
+      1,
+      2,
+      "new"
+    ]
+  },
+  "script_error": {
+    "error_kind": "WRONGTYPE",
+    "retained_value": "1",
+    "pttl_ms": -1
+  },
+  "limits": "No Redis crash, persistence recovery, replica promotion, Cluster, or production traffic tested."
+}
