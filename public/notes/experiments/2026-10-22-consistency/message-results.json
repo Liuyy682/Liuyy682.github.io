@@ -1,0 +1,31 @@
+{
+  "protocol": "actual child exit + SQLite persistence; queue is a local inbox model, NOT RocketMQ",
+  "direct": {
+    "order_rows": 1,
+    "queue_rows": 0,
+    "exit_code": 73
+  },
+  "outbox": {
+    "pending_after_crash": 1,
+    "delivered_event_ids": [
+      "event-1",
+      "event-1"
+    ],
+    "marked_sent": 1,
+    "consumer_effect_count": 1
+  },
+  "transaction_message_model": {
+    "first_checks": {
+      "tx-ok": "COMMIT",
+      "tx-no": "ROLLBACK",
+      "tx-pending": "UNKNOWN"
+    },
+    "late_commit_recheck": "COMMIT",
+    "final_states": {
+      "tx-no": "ROLLED_BACK",
+      "tx-ok": "READY",
+      "tx-pending": "READY"
+    }
+  },
+  "limits": "No RocketMQ broker/SDK, real ACK loss, transaction timeout, producer-cluster check, or replication tested."
+}

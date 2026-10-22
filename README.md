@@ -24,7 +24,7 @@ npm run preview
 | --- | --- |
 | 首页外壳、导航、页脚与 SEO 信息 | `src/pages/index.astro` |
 | 首页、项目、个人介绍与交互 | `public/notes/app.js` |
-| 15 篇技术长文、标题、分类与标签 | `public/notes/articles.js` |
+| 17 篇技术长文、标题、分类与标签 | `public/notes/articles.js` |
 | 技术手记样式与移动端适配 | `public/notes/style.css` |
 
 技术手记沿用原站的 hash 路由，例如 `/#/article/agent-context`。分享完整链接即可直达文章，刷新不会产生 Pages 404。正文由 JavaScript 渲染；这次迁移保留原有内容格式，尚未将六篇长文转换成 Markdown 或为其生成独立 HTML 页面。
@@ -69,6 +69,20 @@ npm run preview
 需要 Java 21、Python 3.12 和本地 `redis-server`，不需要 Python 第三方包、项目服务或账号凭据。
 Redis 脚本只启动自己的临时 Unix socket 实例，关闭 TCP 和持久化，不连接或清空现有实例。
 这些实验验证局部机制，不代表生产压测、Redis 故障切换或远程取消协议已经通过验证。
+
+## 2026-10-22 一致性与证据生命周期
+
+本批重写 Cache Aside，保留 `cache-aside` 路由与原始日期 `2026.10.17`，在正文提示中记录修订日期；新增以下两篇，总数为 17 篇。
+
+| 文章 | 路由 | 本次证据 |
+| --- | --- | --- |
+| 先更新数据库再删缓存，旧值为什么还会回来？ | `/#/article/cache-aside` | 真实 Redis/SQLite 的六组屏障时序，旧回填、第二次删除及版本门槛反例 |
+| 数据库写成功了，消息却没发出去：Outbox 与 RocketMQ 事务消息 | `/#/article/outbox-rocketmq-transactions` | 子进程退出、SQLite Outbox/消费去重；事务消息为官方协议解读和本地状态模型 |
+| Agent 保存了工具结果，为什么恢复后仍然用不了？ | `/#/article/agent-artifact-lifecycle` | 真实文件删除、改写、发布中断和摘要校验；引用 GC 为元数据模型 |
+
+复现文件与原始结果：`public/notes/experiments/2026-10-22-consistency/`。
+运行命令、版本与证据边界：`public/notes/evidence/2026-10-22-consistency.md`。
+需要 Python 标准库和本地 Redis；没有运行 RocketMQ Broker/SDK 或生产故障测试。消息端的独立 SQLite 收件箱不代表真实消息服务。
 
 ## 原有 Markdown 文章
 

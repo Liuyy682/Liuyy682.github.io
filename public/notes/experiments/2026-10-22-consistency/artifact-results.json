@@ -1,0 +1,36 @@
+{
+  "protocol": "real files, hashes, fsync/rename and child process exit; synthetic logical TTL",
+  "normal": "answer=42",
+  "deleted_file": "MISSING_ARTIFACT",
+  "modified_file": {
+    "naive_line3": "item=A",
+    "verified_read": "INTEGRITY_ERROR"
+  },
+  "same_size_tamper": {
+    "size_unchanged": true,
+    "naive_line3": "answer=99",
+    "verified_read": "INTEGRITY_ERROR"
+  },
+  "age_only_gc": "MISSING_ARTIFACT",
+  "publication": {
+    "object_first": {
+      "exit_code": 73,
+      "recovery": "NO_CHECKPOINT",
+      "object_count": 1
+    },
+    "reference_first": {
+      "exit_code": 73,
+      "recovery": "MISSING_ARTIFACT",
+      "object_count": 0
+    }
+  },
+  "reference_gc": {
+    "gc_with_recoverable_ref": 0,
+    "reader_pin_acquired": 1,
+    "gc_with_reader_pin": 0,
+    "gc_after_release": 1,
+    "new_ref_after_deleting": 0,
+    "limits": "Metadata state model only; no distributed reader leases or physical GC crash recovery."
+  },
+  "limits": "No power-loss, remote object store, model recovery quality or sandbox authorization tested."
+}
