@@ -1,0 +1,303 @@
+{
+  "capacity": {
+    "protocol": "uniform arrivals; fixed 20s service; FCFS; infinite queue; no retries",
+    "arrivals_per_min": 40,
+    "arrival_window_s": 600,
+    "jobs": 400,
+    "rows": [
+      {
+        "workers": 4,
+        "ideal_capacity_per_min": 12,
+        "completed_at_600s": 117,
+        "running_at_600s": 4,
+        "waiting_at_600s": 279,
+        "all_400_jobs_wait_p95_s": 1316.0,
+        "last_finish_s": 2004.5
+      },
+      {
+        "workers": 8,
+        "ideal_capacity_per_min": 24,
+        "completed_at_600s": 233,
+        "running_at_600s": 8,
+        "waiting_at_600s": 159,
+        "all_400_jobs_wait_p95_s": 376.0,
+        "last_finish_s": 1010.5
+      },
+      {
+        "workers": 16,
+        "ideal_capacity_per_min": 48,
+        "completed_at_600s": 387,
+        "running_at_600s": 13,
+        "waiting_at_600s": 0,
+        "all_400_jobs_wait_p95_s": 0.0,
+        "last_finish_s": 618.5
+      }
+    ],
+    "provider_example": {
+      "calls_per_video": 10,
+      "calls_per_min": 300,
+      "video_capacity_per_min": 30,
+      "backlog_growth_per_min": 10
+    }
+  },
+  "ownership": {
+    "protocol": "SQLite two connections; forced interleaving; synthetic trusted owner",
+    "unscoped_bob_can_read_alice": true,
+    "scoped_bob_can_read_alice": false,
+    "scoped_alice_can_read_own": true,
+    "intended_increments": 2,
+    "unguarded_final_value": 1,
+    "cas_rows": [
+      1,
+      0,
+      1
+    ],
+    "cas_final_value": 2,
+    "old_epoch_commit_rows": 0,
+    "current_epoch_commit_rows": 1
+  },
+  "retrieval": {
+    "protocol": "four hand-built counterexamples; fixed ranks; RRF c=60; tie by doc ID; K=3",
+    "cases": [
+      {
+        "id": "exact-code",
+        "query": "E1042 错误码如何处理",
+        "gold": [
+          "A"
+        ],
+        "lexical": [
+          "A",
+          "B",
+          "C"
+        ],
+        "dense": [
+          "B",
+          "C",
+          "A"
+        ],
+        "rrf": [
+          "B",
+          "A",
+          "C"
+        ],
+        "rrf_scores": {
+          "A": 0.032266458495966696,
+          "B": 0.03252247488101534,
+          "C": 0.03200204813108039
+        },
+        "oracle_rerank": [
+          "A",
+          "B",
+          "C"
+        ],
+        "metrics": {
+          "lexical": {
+            "recall_at_3": 1.0,
+            "reciprocal_rank_at_3": 1.0,
+            "hit_at_1": 1
+          },
+          "dense": {
+            "recall_at_3": 1.0,
+            "reciprocal_rank_at_3": 0.3333333333333333,
+            "hit_at_1": 0
+          },
+          "rrf": {
+            "recall_at_3": 1.0,
+            "reciprocal_rank_at_3": 0.5,
+            "hit_at_1": 0
+          },
+          "oracle_rerank": {
+            "recall_at_3": 1.0,
+            "reciprocal_rank_at_3": 1.0,
+            "hit_at_1": 1
+          }
+        }
+      },
+      {
+        "id": "paraphrase",
+        "query": "关掉页面后为什么任务还在跑",
+        "gold": [
+          "D"
+        ],
+        "lexical": [
+          "E",
+          "F",
+          "D"
+        ],
+        "dense": [
+          "D",
+          "E",
+          "F"
+        ],
+        "rrf": [
+          "E",
+          "D",
+          "F"
+        ],
+        "rrf_scores": {
+          "E": 0.03252247488101534,
+          "F": 0.03200204813108039,
+          "D": 0.032266458495966696
+        },
+        "oracle_rerank": [
+          "D",
+          "E",
+          "F"
+        ],
+        "metrics": {
+          "lexical": {
+            "recall_at_3": 1.0,
+            "reciprocal_rank_at_3": 0.3333333333333333,
+            "hit_at_1": 0
+          },
+          "dense": {
+            "recall_at_3": 1.0,
+            "reciprocal_rank_at_3": 1.0,
+            "hit_at_1": 1
+          },
+          "rrf": {
+            "recall_at_3": 1.0,
+            "reciprocal_rank_at_3": 0.5,
+            "hit_at_1": 0
+          },
+          "oracle_rerank": {
+            "recall_at_3": 1.0,
+            "reciprocal_rank_at_3": 1.0,
+            "hit_at_1": 1
+          }
+        }
+      },
+      {
+        "id": "constraint",
+        "query": "只查项目甲中支持离线运行的方案",
+        "gold": [
+          "G"
+        ],
+        "lexical": [
+          "H",
+          "I",
+          "G"
+        ],
+        "dense": [
+          "I",
+          "H",
+          "G"
+        ],
+        "rrf": [
+          "H",
+          "I",
+          "G"
+        ],
+        "rrf_scores": {
+          "H": 0.03252247488101534,
+          "I": 0.03252247488101534,
+          "G": 0.031746031746031744
+        },
+        "oracle_rerank": [
+          "G",
+          "H",
+          "I"
+        ],
+        "metrics": {
+          "lexical": {
+            "recall_at_3": 1.0,
+            "reciprocal_rank_at_3": 0.3333333333333333,
+            "hit_at_1": 0
+          },
+          "dense": {
+            "recall_at_3": 1.0,
+            "reciprocal_rank_at_3": 0.3333333333333333,
+            "hit_at_1": 0
+          },
+          "rrf": {
+            "recall_at_3": 1.0,
+            "reciprocal_rank_at_3": 0.3333333333333333,
+            "hit_at_1": 0
+          },
+          "oracle_rerank": {
+            "recall_at_3": 1.0,
+            "reciprocal_rank_at_3": 1.0,
+            "hit_at_1": 1
+          }
+        }
+      },
+      {
+        "id": "missing",
+        "query": "新版协议的取消规则",
+        "gold": [
+          "J"
+        ],
+        "lexical": [
+          "K",
+          "L",
+          "M"
+        ],
+        "dense": [
+          "L",
+          "M",
+          "K"
+        ],
+        "rrf": [
+          "L",
+          "K",
+          "M"
+        ],
+        "rrf_scores": {
+          "K": 0.032266458495966696,
+          "L": 0.03252247488101534,
+          "M": 0.03200204813108039
+        },
+        "oracle_rerank": [
+          "L",
+          "K",
+          "M"
+        ],
+        "metrics": {
+          "lexical": {
+            "recall_at_3": 0.0,
+            "reciprocal_rank_at_3": 0,
+            "hit_at_1": 0
+          },
+          "dense": {
+            "recall_at_3": 0.0,
+            "reciprocal_rank_at_3": 0,
+            "hit_at_1": 0
+          },
+          "rrf": {
+            "recall_at_3": 0.0,
+            "reciprocal_rank_at_3": 0,
+            "hit_at_1": 0
+          },
+          "oracle_rerank": {
+            "recall_at_3": 0.0,
+            "reciprocal_rank_at_3": 0,
+            "hit_at_1": 0
+          }
+        }
+      }
+    ],
+    "averages": {
+      "lexical": {
+        "recall_at_3": 0.75,
+        "reciprocal_rank_at_3": 0.41666666666666663,
+        "hit_at_1": 0.25
+      },
+      "dense": {
+        "recall_at_3": 0.75,
+        "reciprocal_rank_at_3": 0.41666666666666663,
+        "hit_at_1": 0.25
+      },
+      "rrf": {
+        "recall_at_3": 0.75,
+        "reciprocal_rank_at_3": 0.3333333333333333,
+        "hit_at_1": 0.0
+      },
+      "oracle_rerank": {
+        "recall_at_3": 0.75,
+        "reciprocal_rank_at_3": 0.75,
+        "hit_at_1": 0.75
+      }
+    },
+    "limits": "No tokenizer, embedding, learned reranker or LLM executed. Oracle uses gold explicitly."
+  }
+}
